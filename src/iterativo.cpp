@@ -1,13 +1,13 @@
 #include <iostream>
 #include <fstream>
-#include <chrono>
 #include <eigen3/Eigen/Dense>
 
 enum {
   Jacobi,
   JacobiSum,
   GaussSeidel,
-  GaussSeidelSum
+  GaussSeidelSum,
+  FactLU
 };
 
 using namespace Eigen;
@@ -20,19 +20,19 @@ VectorXd gaussSeidel(const MatrixXd &, const MatrixXd &, const MatrixXd &);
 VectorXd gaussSeidelSum();
 
 MatrixXd A;
-VectorXd x, b;
+VectorXd b;
 
 size_t iteraciones;
-double error;
+double corte;
 
 int main(int argc, const char **argv) {
   if (argc < 5) {
-    cerr << "Uso: " << argv[0] << " <sistema> <metodo> <iteraciones> <maximo_error>" << endl;
+    cerr << "Uso: " << argv[0] << " <matriz_extendida> <metodo> <iteraciones> <corte>" << endl;
     return -1;
   }
 
-  ifstream sistema(argv[1]);
-  if (!sistema.is_open()) {
+  ifstream archivo(argv[1]);
+  if (!archivo.is_open()) {
     cerr << "Error al abrir el sistema de entrada" << endl;
     return -1;
   }
@@ -48,58 +48,55 @@ int main(int argc, const char **argv) {
     metodo = GaussSeidel;
   else if (arg == "GSS")
     metodo = GaussSeidelSum;
+  else if (arg == "LU")
+    metodo = FactLU;
   else {
     cerr << "Metodo invalido" << endl;
     return -1;
   }
 
-  int n; sistema >> n;
-  A.resize(n, n), x.resize(n), b.resize(n);
+  size_t n; archivo >> n;
+  A.resize(n, n), b.resize(n);
 
-  // Cargo la matriz A
-  for (int i = 0; i < n; i++) {
-    for (int j = 0; j < n; j++)
-      sistema >> A(i, j);
+  // Cargo el sistema
+  for (size_t i = 0; i < n; i++) {
+    for (size_t j = 0; j <= n; j++) {
+      if (j == n)
+        archivo >> b(i);
+      else
+        archivo >> A(i, j);
+    } 
   }
 
-  // Cargo la solución del sistema
-  for (int i = 0; i < n; i++)
-    sistema >> x(i);
-
-  // Cargo el resultado del sistema
-  for (int i = 0; i < n; i++)
-    sistema >> b(i);
-
-  sistema.close();
+  archivo.close();
 
   iteraciones = atoi(argv[3]);
-  error = atof(argv[4]);
+  corte = atof(argv[4]);
 
   MatrixXd D, L, U;
   VectorXd solucion;
-  splitMatrix(D, L, U);
-
-  auto inicio = chrono::high_resolution_clock::now();
 
   switch (metodo) {
   case Jacobi:
+    splitMatrix(D, L, U);
     solucion = jacobi(D, L, U);
     break;
   case JacobiSum:
     solucion = jacobiSum();
     break;
   case GaussSeidel:
+    splitMatrix(D, L, U);
     solucion = gaussSeidel(D, L, U);
     break;
   case GaussSeidelSum:  
     solucion = gaussSeidelSum();
     break;
+  case FactLU:
+    solucion = A.lu().solve(b);
+    break;
   }
   
-  auto fin = chrono::high_resolution_clock::now();
-  cout << "Tiempo: " << chrono::duration<double, milli>(fin - inicio).count() << endl;
-  cout << "Solucion: " << solucion.transpose() << endl;
-
+  cout << solucion.transpose();
   return 0;
 }
 
@@ -129,12 +126,16 @@ VectorXd jacobi(const MatrixXd &D, const MatrixXd &L, const MatrixXd &U) {
 
   for (size_t k = 0; k < iteraciones; k++) {
     VectorXd x_k = inv * (b + sum * x0);
+
+    if ((x_k - x0).norm() < corte)
+      return x_k;
+
     x0 = x_k;
 
-    if ((x0 - x).norm() > error) {
+    /*if ((x0 - x).norm() > error) {
       cerr << "El metodo diverge a la solucion" << endl;
       break;
-    }
+    }*/
   }
 
   return x0;
@@ -156,12 +157,17 @@ VectorXd jacobiSum() {
 
       x_k(i) = (b(i) - sum) / A(i, i);
     }
+
+    if ((x_k - x0).norm() < corte)
+      return x_k;
+
+
     x0 = x_k;
 
-    if ((x0 - x).norm() > error) {
+    /*if ((x0 - x).norm() > error) {
       cerr << "El metodo diverge a la solucion" << endl;
       break;
-    }
+    }*/
   }
 
   return x0;
@@ -173,12 +179,16 @@ VectorXd gaussSeidel(const MatrixXd &D, const MatrixXd &L, const MatrixXd &U) {
 
   for (size_t i = 0; i < iteraciones; i++) {
     VectorXd x_k = inv * (b + U * x0);
+
+    if ((x_k - x0).norm() < corte)
+      return x_k;
+
     x0 = x_k;
 
-    if ((x0 - x).norm() > error) {
+    /*if ((x0 - x).norm() > error) {
       cerr << "El metodo diverge a la solucion" << endl;
       break;
-    }
+    }*/
   }
 
   return x0;
@@ -204,12 +214,15 @@ VectorXd gaussSeidelSum() {
       xk_1(i) = (b(i) - sum - sum2) / A(i, i);
     }
 
+    if ((xk_1 - x0).norm() < corte)
+      return xk_1;
+
     x0 = xk_1;
 
-    if ((x0 - x).norm() > error) {
+    /*if ((x0 - x).norm() > error) {
       cerr << "El metodo diverge a la solucion" << endl;
       break;
-    }
+    }*/
   }
 
   return x0;
