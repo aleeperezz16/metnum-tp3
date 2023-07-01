@@ -1,6 +1,6 @@
 #include <iostream>
 #include <fstream>
-#include <eigen3/Eigen/Dense>
+#include "Eigen/Dense"
 
 enum {
   Jacobi,
@@ -95,8 +95,8 @@ int main(int argc, const char **argv) {
     solucion = A.lu().solve(b);
     break;
   }
-  
-  cout << solucion.transpose();
+  IOFormat fmt(StreamPrecision, DontAlignCols);
+  cout << solucion.transpose().format(fmt);
   return 0;
 }
 
@@ -132,12 +132,8 @@ VectorXd jacobi(const MatrixXd &D, const MatrixXd &L, const MatrixXd &U) {
 
     x0 = x_k;
 
-    /*if ((x0 - x).norm() > error) {
-      cerr << "El metodo diverge a la solucion" << endl;
-      break;
-    }*/
   }
-
+  cerr << "Número de iteraciones máximo alcanzado, el método posiblemente diverge." << endl;
   return x0;
 }
 
@@ -164,12 +160,8 @@ VectorXd jacobiSum() {
 
     x0 = x_k;
 
-    /*if ((x0 - x).norm() > error) {
-      cerr << "El metodo diverge a la solucion" << endl;
-      break;
-    }*/
   }
-
+  cerr << "Número de iteraciones máximo alcanzado, el método posiblemente diverge." << endl;
   return x0;
 }
 
@@ -185,12 +177,8 @@ VectorXd gaussSeidel(const MatrixXd &D, const MatrixXd &L, const MatrixXd &U) {
 
     x0 = x_k;
 
-    /*if ((x0 - x).norm() > error) {
-      cerr << "El metodo diverge a la solucion" << endl;
-      break;
-    }*/
   }
-
+  cerr << "Número de iteraciones máximo alcanzado, el método posiblemente diverge." << endl;
   return x0;
 }
 
@@ -216,14 +204,10 @@ VectorXd gaussSeidelSum() {
 
     if ((xk_1 - x0).norm() < corte)
       return xk_1;
-
+      
     x0 = xk_1;
 
-    /*if ((x0 - x).norm() > error) {
-      cerr << "El metodo diverge a la solucion" << endl;
-      break;
-    }*/
   }
-
+  cerr << "Número de iteraciones máximo alcanzado, el método posiblemente diverge." << endl;
   return x0;
 }
