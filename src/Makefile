@@ -1,6 +1,6 @@
 TARGET = iterativo
 CC = g++
-CFLAGS = -Wall -Wextra
+CFLAGS = -Wall -Wextra -O3 -fopenmp
 
 SOURCES = iterativo.cpp
 

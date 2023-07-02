@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <limits>
 #include "Eigen/Dense"
 
 enum {
@@ -23,11 +24,11 @@ MatrixXd A;
 VectorXd b;
 
 size_t iteraciones;
-double corte;
+double tolerancia;
 
 int main(int argc, const char **argv) {
   if (argc < 5) {
-    cerr << "Uso: " << argv[0] << " <matriz_extendida> <metodo> <iteraciones> <corte>" << endl;
+    cerr << "Uso: " << argv[0] << " <matriz_extendida> <metodo> <iteraciones> <tolerancia>" << endl;
     return -1;
   }
 
@@ -71,7 +72,7 @@ int main(int argc, const char **argv) {
   archivo.close();
 
   iteraciones = atoi(argv[3]);
-  corte = atof(argv[4]);
+  tolerancia = atof(argv[4]);
 
   MatrixXd D, L, U;
   VectorXd solucion;
@@ -127,7 +128,7 @@ VectorXd jacobi(const MatrixXd &D, const MatrixXd &L, const MatrixXd &U) {
   for (size_t k = 0; k < iteraciones; k++) {
     VectorXd x_k = inv * (b + sum * x0);
 
-    if ((x_k - x0).norm() < corte)
+    if ((x_k - x0).norm() < tolerancia || x_k.norm() > MAXFLOAT)
       return x_k;
 
     x0 = x_k;
@@ -154,9 +155,8 @@ VectorXd jacobiSum() {
       x_k(i) = (b(i) - sum) / A(i, i);
     }
 
-    if ((x_k - x0).norm() < corte)
+    if ((x_k - x0).norm() < tolerancia || x_k.norm() > MAXFLOAT)
       return x_k;
-
 
     x0 = x_k;
 
@@ -172,12 +172,12 @@ VectorXd gaussSeidel(const MatrixXd &D, const MatrixXd &L, const MatrixXd &U) {
   for (size_t i = 0; i < iteraciones; i++) {
     VectorXd x_k = inv * (b + U * x0);
 
-    if ((x_k - x0).norm() < corte)
+    if ((x_k - x0).norm() < tolerancia || x_k.norm() > MAXFLOAT)
       return x_k;
 
     x0 = x_k;
-
   }
+
   cerr << "Número de iteraciones máximo alcanzado, el método posiblemente diverge." << endl;
   return x0;
 }
@@ -202,7 +202,7 @@ VectorXd gaussSeidelSum() {
       xk_1(i) = (b(i) - sum - sum2) / A(i, i);
     }
 
-    if ((xk_1 - x0).norm() < corte)
+    if ((xk_1 - x0).norm() < tolerancia || xk_1.norm() > MAXFLOAT)
       return xk_1;
       
     x0 = xk_1;
