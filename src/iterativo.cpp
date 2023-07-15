@@ -1,7 +1,6 @@
 #include <iostream>
 #include <fstream>
-#include <limits>
-#include "Eigen/Dense"
+#include <Eigen/Dense>
 
 enum {
   Jacobi,
@@ -14,17 +13,11 @@ enum {
 using namespace Eigen;
 using namespace std;
 
-void splitMatrix(MatrixXd &, MatrixXd &, MatrixXd &);
-VectorXd jacobi(const MatrixXd &, const MatrixXd &, const MatrixXd &);
-VectorXd jacobiSum();
-VectorXd gaussSeidel(const MatrixXd &, const MatrixXd &, const MatrixXd &);
-VectorXd gaussSeidelSum();
-
-MatrixXd A;
-VectorXd b;
-
-size_t iteraciones;
-double tolerancia;
+void splitMatrix(const MatrixXd &, MatrixXd &, MatrixXd &, MatrixXd &);
+VectorXd jacobi(const MatrixXd &, const VectorXd &, size_t, double);
+VectorXd jacobiSum(const MatrixXd &, const VectorXd &, size_t, double);
+VectorXd gaussSeidel(const MatrixXd &, const VectorXd &, size_t, double);
+VectorXd gaussSeidelSum(const MatrixXd &, const VectorXd &, size_t, double);
 
 int main(int argc, const char **argv) {
   if (argc < 5) {
@@ -57,7 +50,8 @@ int main(int argc, const char **argv) {
   }
 
   size_t n; archivo >> n;
-  A.resize(n, n), b.resize(n);
+  MatrixXd A(n, n);
+  VectorXd b(n);
 
   // Cargo el sistema
   for (size_t i = 0; i < n; i++) {
@@ -71,143 +65,130 @@ int main(int argc, const char **argv) {
 
   archivo.close();
 
-  iteraciones = atoi(argv[3]);
-  tolerancia = atof(argv[4]);
+  size_t iteraciones = atoi(argv[3]);
+  double tolerancia = atof(argv[4]);
 
-  MatrixXd D, L, U;
   VectorXd solucion;
 
   switch (metodo) {
   case Jacobi:
-    splitMatrix(D, L, U);
-    solucion = jacobi(D, L, U);
+    solucion = jacobi(A, b, iteraciones, tolerancia);
     break;
   case JacobiSum:
-    solucion = jacobiSum();
+    solucion = jacobiSum(A, b, iteraciones, tolerancia);
     break;
   case GaussSeidel:
-    splitMatrix(D, L, U);
-    solucion = gaussSeidel(D, L, U);
+    solucion = gaussSeidel(A, b, iteraciones, tolerancia);
     break;
   case GaussSeidelSum:  
-    solucion = gaussSeidelSum();
+    solucion = gaussSeidelSum(A, b, iteraciones, tolerancia);
     break;
   case FactLU:
-    solucion = A.lu().solve(b);
+    solucion = A.fullPivLu().solve(b);
     break;
   }
+
   IOFormat fmt(StreamPrecision, DontAlignCols);
   cout << solucion.transpose().format(fmt);
   return 0;
 }
 
-void splitMatrix(MatrixXd &D, MatrixXd &L, MatrixXd &U) {
-  size_t n = A.rows();
-
-  D = MatrixXd::Zero(n, n);
-  L = MatrixXd::Zero(n, n);
-  U = MatrixXd::Zero(n, n);
-
-  for (size_t i = 0; i < n; i++) {
-    for (size_t j = 0; j < n; j++) {
-      if (i < j)
-        U(i, j) = -A(i, j);
-      else if (i > j)
-        L(i, j) = -A(i, j);
-      else
-        D(i, j) = A(i, j);
-    }
-  }
+void splitMatrix(const MatrixXd &A, MatrixXd &D, MatrixXd &L, MatrixXd &U) {
+  D = A.diagonal().asDiagonal();
+  L = -(MatrixXd)(A.triangularView<StrictlyLower>());
+  U = -(MatrixXd)(A.triangularView<StrictlyUpper>());
 }
 
-VectorXd jacobi(const MatrixXd &D, const MatrixXd &L, const MatrixXd &U) {
-  MatrixXd inv = D.inverse();
-  MatrixXd sum = L + U;
+VectorXd jacobi(const MatrixXd &A, const VectorXd &b, size_t iteraciones, double tolerancia) {
+  MatrixXd D, L, U;
+  splitMatrix(A, D, L, U);
+
+  MatrixXd D_inv = D.fullPivLu().inverse();
+  MatrixXd L_U = L + U;
   VectorXd x0 = VectorXd::Random(D.rows());
 
   for (size_t k = 0; k < iteraciones; k++) {
-    VectorXd x_k = inv * (b + sum * x0);
+    VectorXd x = D_inv * (L_U * x0 + b);
 
-    if ((x_k - x0).norm() < tolerancia || x_k.norm() > MAXFLOAT)
-      return x_k;
+    if ((x - x0).norm() < tolerancia)
+      return x;
 
-    x0 = x_k;
-
+    x0 = x;
   }
-  cerr << "Número de iteraciones máximo alcanzado, el método posiblemente diverge." << endl;
+
+  cerr << "El método no converge para " << iteraciones << " iteracion(es)." << endl;
   return x0;
 }
 
-VectorXd jacobiSum() {
+VectorXd jacobiSum(const MatrixXd &A, const VectorXd &b, size_t iteraciones, double tolerancia) {
   size_t n = A.rows();
   VectorXd x0 = VectorXd::Random(n);
+  VectorXd x = VectorXd::Zero(n);
 
   for (size_t k = 0; k < iteraciones; k++) {
-    VectorXd x_k(n);
     for (size_t i = 0; i < n; i++) {
-      double sum = 0;
-
+      double sum = 0.0;
       for (size_t j = 0; j < n; j++) {
         if (j != i)
           sum += A(i, j) * x0(j);
       }
 
-      x_k(i) = (b(i) - sum) / A(i, i);
+      x(i) = (b(i) - sum) / A(i, i);
     }
 
-    if ((x_k - x0).norm() < tolerancia || x_k.norm() > MAXFLOAT)
-      return x_k;
+    if ((x - x0).norm() < tolerancia)
+      return x;
 
-    x0 = x_k;
-
+    x0 = x;
   }
-  cerr << "Número de iteraciones máximo alcanzado, el método posiblemente diverge." << endl;
+
+  cerr << "El método no converge para " << iteraciones << " iteracion(es)." << endl;
   return x0;
 }
 
-VectorXd gaussSeidel(const MatrixXd &D, const MatrixXd &L, const MatrixXd &U) {
-  MatrixXd inv = (D - L).inverse();
+VectorXd gaussSeidel(const MatrixXd &A, const VectorXd &b, size_t iteraciones, double tolerancia) {
+  MatrixXd D, L, U;
+  splitMatrix(A, D, L, U);
+  
+  MatrixXd D_L = (D - L).fullPivLu().inverse();
   VectorXd x0 = VectorXd::Random(D.rows());
 
-  for (size_t i = 0; i < iteraciones; i++) {
-    VectorXd x_k = inv * (b + U * x0);
+  for (size_t k = 0; k < iteraciones; k++) {
+    VectorXd x = D_L * (U * x0 + b);
+    
+    if ((x - x0).norm() < tolerancia)
+      return x;
 
-    if ((x_k - x0).norm() < tolerancia || x_k.norm() > MAXFLOAT)
-      return x_k;
-
-    x0 = x_k;
+    x0 = x;
   }
 
-  cerr << "Número de iteraciones máximo alcanzado, el método posiblemente diverge." << endl;
+  cerr << "El método no converge para " << iteraciones << " iteracion(es)." << endl;
   return x0;
 }
 
-VectorXd gaussSeidelSum() {
+VectorXd gaussSeidelSum(const MatrixXd &A, const VectorXd &b, size_t iteraciones, double tolerancia) {
   size_t n = A.rows();
-
   VectorXd x0 = VectorXd::Random(n);
-  VectorXd xk_1(n);
+  VectorXd x = VectorXd::Zero(n);
 
   for (size_t k = 0; k < iteraciones; k++) {
     for (size_t i = 0; i < n; i++) {
-      double sum, sum2;
-      sum = sum2 = 0;
-
+      double sum1 = 0.0, sum2 = 0.0;
       for (size_t j = 0; j < i; j++)
-        sum += A(i, j) * xk_1(j);
+        sum1 += A(i, j) * x(j);
 
       for (size_t j = i + 1; j < n; j++)
         sum2 += A(i, j) * x0(j);
 
-      xk_1(i) = (b(i) - sum - sum2) / A(i, i);
+      x(i) = (b(i) - sum1 - sum2) / A(i, i);
     }
 
-    if ((xk_1 - x0).norm() < tolerancia || xk_1.norm() > MAXFLOAT)
-      return xk_1;
+    if ((x - x0).norm() < tolerancia)
+      return x;
       
-    x0 = xk_1;
-
+    x0 = x;
   }
-  cerr << "Número de iteraciones máximo alcanzado, el método posiblemente diverge." << endl;
+
+  cerr << "El método no converge para " << iteraciones << " iteracion(es)." << endl;
   return x0;
 }
