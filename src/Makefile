@@ -2,7 +2,7 @@ TARGET = iterativo
 INCLUDE_DIR = ./
 
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -O3 -I $(INCLUDE_DIR)
+CXXFLAGS = -Wall -Wextra -O3 -I $(INCLUDE_DIR)
 
 SOURCES = iterativo.cpp
 

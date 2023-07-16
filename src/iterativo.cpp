@@ -84,7 +84,7 @@ int main(int argc, const char **argv) {
     solucion = gaussSeidelSum(A, b, iteraciones, tolerancia);
     break;
   case FactLU:
-    solucion = A.fullPivLu().solve(b);
+    solucion = A.lu().solve(b);
     break;
   }
 
@@ -103,12 +103,13 @@ VectorXd jacobi(const MatrixXd &A, const VectorXd &b, size_t iteraciones, double
   MatrixXd D, L, U;
   splitMatrix(A, D, L, U);
 
-  MatrixXd D_inv = D.fullPivLu().inverse();
-  MatrixXd L_U = L + U;
+  MatrixXd D_inv = D.inverse();
   VectorXd x0 = VectorXd::Random(D.rows());
+  MatrixXd T = D_inv * (L + U);
+  VectorXd c = D_inv * b;
 
   for (size_t k = 0; k < iteraciones; k++) {
-    VectorXd x = D_inv * (L_U * x0 + b);
+    VectorXd x = T * x0 + c;
 
     if ((x - x0).norm() < tolerancia)
       return x;
@@ -150,11 +151,13 @@ VectorXd gaussSeidel(const MatrixXd &A, const VectorXd &b, size_t iteraciones, d
   MatrixXd D, L, U;
   splitMatrix(A, D, L, U);
   
-  MatrixXd D_L = (D - L).fullPivLu().inverse();
+  MatrixXd D_L = (D - L).inverse();
   VectorXd x0 = VectorXd::Random(D.rows());
+  MatrixXd T = D_L * U;
+  VectorXd c = D_L * b;
 
   for (size_t k = 0; k < iteraciones; k++) {
-    VectorXd x = D_L * (U * x0 + b);
+    VectorXd x = T * x0 + c;
     
     if ((x - x0).norm() < tolerancia)
       return x;
